@@ -77,7 +77,6 @@ func main() {
 
 	flag.StringVar(&addrRegexp, "regexp", "", "address regexp")
 	flag.IntVar(&workers, "workers", runtime.NumCPU(), "workers number")
-
 	flag.Parse()
 
 	if workers < 1 {
