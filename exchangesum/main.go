@@ -43,7 +43,7 @@ func main() {
 		limit    int
 	)
 
-	flag.StringVar(&locName, "loc", "Europe/Moscow", "time location time")
+	flag.StringVar(&locName, "loc", "Europe/Moscow", "time location")
 	flag.StringVar(&cur, "cur", "RUB", "currency")
 	flag.StringVar(&filename, "f", "Exchange history.csv", "exchange history file")
 	flag.IntVar(&limit, "limit", -1, "limit")
