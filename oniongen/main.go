@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base32"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -20,7 +21,12 @@ var (
 	addressVersion = []byte{0x03}
 )
 
-func worker(ctx context.Context, re *regexp.Regexp, wg *sync.WaitGroup, addressCh chan<- string) {
+type result struct {
+	Address string
+	Priv    ed25519.PrivateKey
+}
+
+func worker(ctx context.Context, re *regexp.Regexp, wg *sync.WaitGroup, resultCh chan<- *result) {
 	defer wg.Done()
 
 	var (
@@ -35,7 +41,7 @@ func worker(ctx context.Context, re *regexp.Regexp, wg *sync.WaitGroup, addressC
 		default:
 		}
 
-		pub, _, err := ed25519.GenerateKey(nil)
+		pub, priv, err := ed25519.GenerateKey(nil)
 		if err != nil {
 			log.Println(fmt.Errorf("failed to generate key: %w", err))
 			break
@@ -57,7 +63,7 @@ func worker(ctx context.Context, re *regexp.Regexp, wg *sync.WaitGroup, addressC
 		address = strings.ToLower(address) + ".onion"
 
 		if re.MatchString(address) {
-			addressCh <- address
+			resultCh <- &result{Address: address, Priv: priv}
 			break
 		}
 	}
@@ -84,19 +90,20 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	addressCh := make(chan string, workers)
+	resultCh := make(chan *result, workers)
 
 	wg := sync.WaitGroup{}
 	wg.Add(workers)
 
 	for i := 0; i < workers; i++ {
-		go worker(ctx, re, &wg, addressCh)
+		go worker(ctx, re, &wg, resultCh)
 	}
 
-	log.Println(<-addressCh)
+	result := <-resultCh
+
 	cancel()
 	wg.Wait()
-	close(addressCh)
+	close(resultCh)
 
-	log.Println("done")
+	log.Println(result.Address, hex.EncodeToString(result.Priv))
 }
