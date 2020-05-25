@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"encoding/base32"
 	"flag"
@@ -10,6 +11,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 
 	"golang.org/x/crypto/sha3"
 )
@@ -18,7 +20,9 @@ var (
 	addressVersion = []byte{0x03}
 )
 
-func worker(re *regexp.Regexp, closeCh <-chan interface{}, addressCh chan<- string) {
+func worker(ctx context.Context, re *regexp.Regexp, wg *sync.WaitGroup, addressCh chan<- string) {
+	defer wg.Done()
+
 	var (
 		checksumBuf bytes.Buffer
 		addressBuf  bytes.Buffer
@@ -26,7 +30,7 @@ func worker(re *regexp.Regexp, closeCh <-chan interface{}, addressCh chan<- stri
 
 	for {
 		select {
-		case <-closeCh:
+		case <-ctx.Done():
 			return
 		default:
 		}
@@ -34,7 +38,7 @@ func worker(re *regexp.Regexp, closeCh <-chan interface{}, addressCh chan<- stri
 		pub, _, err := ed25519.GenerateKey(nil)
 		if err != nil {
 			log.Println(fmt.Errorf("failed to generate key: %w", err))
-			return
+			break
 		}
 
 		checksumBuf.Reset()
@@ -79,15 +83,19 @@ func main() {
 		log.Fatalln(fmt.Errorf("failed to compile address regexp"))
 	}
 
-	closeCh := make(chan interface{})
-	addressCh := make(chan string)
+	ctx, cancel := context.WithCancel(context.Background())
+	addressCh := make(chan string, workers)
+
+	wg := sync.WaitGroup{}
+	wg.Add(workers)
 
 	for i := 0; i < workers; i++ {
-		go worker(re, closeCh, addressCh)
+		go worker(ctx, re, &wg, addressCh)
 	}
 
 	log.Println(<-addressCh)
-	close(closeCh)
+	cancel()
+	wg.Wait()
 	close(addressCh)
 
 	log.Println("done")
