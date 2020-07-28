@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -78,6 +79,16 @@ func main() {
 
 	for _, chat := range chats {
 		if chat.Type.GetChatTypeEnum() != tdlib.ChatTypeSupergroupType {
+			continue
+		}
+
+		supergroup, ok := chat.Type.(*tdlib.ChatTypeSupergroup)
+		if !ok {
+			log.Println(errors.New("failed to cast chat type"))
+			return
+		}
+
+		if supergroup.IsChannel {
 			continue
 		}
 
